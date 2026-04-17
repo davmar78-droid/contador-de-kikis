@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contador de Kikis ✨</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-pink: #ff85a2;
+            --soft-pink: #fce4ec;
+            --dark-pink: #f06292;
+            --error-red: #ff5252;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px; 
+            background: var(--soft-pink); 
+            color: #444;
+        }
+
+        .card { 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 25px; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05); 
+            text-align: center; 
+            width: 100%; 
+            max-width: 450px;
+            border: 2px solid #fff;
+        }
+
+        h1 { 
+            color: var(--dark-pink); 
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+
+        .kiki-button { 
+            background: var(--primary-pink); 
+            color: white; 
+            border: none; 
+            padding: 20px 40px; 
+            font-size: 1.5rem; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            transition: all 0.2s ease;
+            box-shadow: 0 6px 0 var(--dark-pink);
+            margin: 20px 0 10px 0;
+            width: 80%;
+        }
+
+        .kiki-button:active { 
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--dark-pink);
+        }
+
+        .undo-button {
+            background: none;
+            border: none;
+            color: #aaa;
+            text-decoration: underline;
+            font-size: 0.8rem;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: color 0.2s;
+        }
+
+        .undo-button:hover {
+            color: var(--error-red);
+        }
+
+        .stats { 
+            margin: 15px 0; 
+            font-size: 1.2rem;
+            background: #fff0f3;
+            padding: 10px;
+            border-radius: 15px;
+            display: inline-block;
+            min-width: 120px;
+        }
+
+        #totalDisplay { font-weight: bold; color: var(--dark-pink); font-size: 1.5rem; }
+
+        #historial { 
+            margin-top: 15px; 
+            max-height: 120px; 
+            overflow-y: auto; 
+            background: #fafafa;
+            border-radius: 15px; 
+            padding: 15px; 
+            text-align: left;
+            font-size: 0.9rem;
+            border: 1px dashed var(--primary-pink);
+        }
+
+        .historial-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .chart-container {
+            width: 100%; 
+            max-width: 500px; 
+            margin-top: 40px;
+            background: white;
+            padding: 20px;
+            border-radius: 25px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Contador de Kikis ✨</h1>
+        <div class="stats">
+            Total: <span id="totalDisplay">0</span>
+        </div>
+        
+        <br>
+        <button class="kiki-button" onclick="registrarKiki()">💖 ¡Uno más!</button>
+        <br>
+        <button class="undo-button" id="undoBtn" onclick="cancelarUltimo()" style="display: none;">¿Error? Deshacer último clic</button>
+        
+        <div id="historial">Aún no hay registros 🌸</div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="graficaMensual"></canvas>
+    </div>
+
+    <script>
+        let datosEventos = JSON.parse(localStorage.getItem('kikis')) || [];
+        
+        const ctx = document.getElementById('graficaMensual').getContext('2d');
+        let chart;
+
+        function registrarKiki() {
+            const ahora = new Date();
+            const fechaString = ahora.toLocaleDateString() + " " + ahora.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            const opcionesMes = { month: 'long', year: 'numeric' };
+            const mesAnio = ahora.toLocaleDateString('es-ES', opcionesMes);
+
+            datosEventos.push({ fecha: fechaString, mes: mesAnio });
+            guardarYActualizar();
+        }
+
+        function cancelarUltimo() {
+            if (datosEventos.length > 0) {
+                if(confirm("¿Quieres eliminar el último registro?")) {
+                    datosEventos.pop();
+                    guardarYActualizar();
+                }
+            }
+        }
+
+        function guardarYActualizar() {
+            localStorage.setItem('kikis', JSON.stringify(datosEventos));
+            actualizarInterfaz();
+        }
+
+        function actualizarInterfaz() {
+            document.getElementById('totalDisplay').innerText = datosEventos.length;
+
+            // Mostrar/ocultar botón de deshacer
+            document.getElementById('undoBtn').style.display = datosEventos.length > 0 ? 'inline-block' : 'none';
+
+            const historialDiv = document.getElementById('historial');
+            if (datosEventos.length === 0) {
+                historialDiv.innerHTML = "Aún no hay registros 🌸";
+            } else {
+                historialDiv.innerHTML = datosEventos.map(e => 
+                    `<div class="historial-item"><span>🌸 ${e.fecha}</span></div>`
+                ).reverse().join('');
+            }
+
+            actualizarGrafica();
+        }
+
+        function actualizarGrafica() {
+            const conteoPorMes = {};
+            datosEventos.forEach(e => {
+                conteoPorMes[e.mes] = (conteoPorMes[e.mes] || 0) + 1;
+            });
+
+            const etiquetas = Object.keys(conteoPorMes);
+            const valores = Object.values(conteoPorMes);
+
+            if (chart) chart.destroy();
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: etiquetas,
+                    datasets: [{
+                        label: 'Kikis por Mes',
+                        data: valores,
+                        backgroundColor: '#ff85a2',
+                        borderRadius: 10,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { 
+                        y: { beginAtZero: true, ticks: { stepSize: 1, color: '#ff85a2' }, grid: { display: false } },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        actualizarInterfaz();
+    </script>
+</body>
+</html>
